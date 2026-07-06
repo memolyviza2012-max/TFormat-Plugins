@@ -8,8 +8,32 @@ def convert_to_csv(filepath, parent_widget=None):
         
     entries = []
     
+    # 0. Custom Unity MESG JSON
+    if isinstance(jdata, dict) and "m_Script" in jdata and isinstance(jdata["m_Script"], str) and jdata["m_Script"].startswith("MESG"):
+        m_script = jdata["m_Script"]
+        parts = m_script.split('\u0000')
+        for i, p in enumerate(parts):
+            if len(p) >= 2:
+                # Exclude garbage with replacement character
+                if '\uFFFD' in p:
+                    continue
+                # Specific valid short words
+                if p in ["OK", "No", "On", "Off", "Yes", "AM", "PM", "All"]:
+                    entries.append((f"mesg_{i}", p))
+                    continue
+                # Ignore very short garbled bits
+                if len(p) <= 3:
+                    continue
+                # Must contain at least one letter
+                if not any(c.isalpha() for c in p):
+                    continue
+                # Must be mostly printable ASCII (or valid Thai/other characters)
+                printable = sum(1 for c in p if 32 <= ord(c) < 127)
+                if printable / len(p) >= 0.9:
+                    entries.append((f"mesg_{i}", p))
+                    
     # 1. c2dictionary (Construct 2/3)
-    if isinstance(jdata, dict) and jdata.get("c2dictionary") is True and "data" in jdata:
+    elif isinstance(jdata, dict) and jdata.get("c2dictionary") is True and "data" in jdata:
         for k, v in jdata["data"].items():
             entries.append((k, str(v)))
             
@@ -33,14 +57,15 @@ def convert_to_csv(filepath, parent_widget=None):
                 entries.append((f"row_{i}", item))
                 
     if not entries:
-        raise ValueError(f"ไม่พบรูปแบบ JSON ที่รองรับในไฟล์ {os.path.basename(filepath)}")
+        raise ValueError(f"ไม่พบข้อความที่สามารถนำไปแปลได้ในไฟล์ {os.path.basename(filepath)}")
         
     base = os.path.splitext(filepath)[0]
     csv_out = base + '_parsed.csv'
     
     with open(csv_out, 'w', encoding='utf-8-sig', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(["ID", "Source", "Translation", "AI_Reference"])
+        # TStudio Native Compatibility Headers
+        writer.writerow(["ID", "ต้นฉบับ", "คำแปล", "AI_Reference"])
         for lid, text in entries:
             writer.writerow([lid, text, '', ''])
             

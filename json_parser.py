@@ -41,7 +41,16 @@ def convert_to_csv(filepath, parent_widget=None):
     elif isinstance(jdata, dict):
         for k, v in jdata.items():
             if isinstance(v, (str, int, float, bool)):
-                entries.append((k, str(v)))
+                v_str = str(v)
+                # If it's a giant block of text (like corrupted binary or very long string),
+                # chunk it into pieces so it "lines up" in the UI (as requested by user),
+                # and allows deploying back.
+                if len(v_str) > 1000:
+                    chunk_size = 500
+                    for i in range(0, len(v_str), chunk_size):
+                        entries.append((f"{k}_part{i//chunk_size}", v_str[i:i+chunk_size]))
+                else:
+                    entries.append((k, v_str))
                 
     # 3. List of dicts
     elif isinstance(jdata, list):

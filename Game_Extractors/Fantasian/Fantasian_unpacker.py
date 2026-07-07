@@ -1,32 +1,30 @@
 import os
 import sys
 import csv
-import UnityPy
+import json
 
-def unpack_fantasian(input_file, output_csv=None):
+def unpack_fantasian_json(input_json, output_csv=None):
     if not output_csv:
-        output_csv = os.path.splitext(input_file)[0] + ".csv"
+        output_csv = os.path.splitext(input_json)[0] + ".csv"
 
-    print(f"Loading {input_file}...")
-    env = UnityPy.load(input_file)
-    
+    print(f"Loading {input_json}...")
+    with open(input_json, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+        
     extracted = []
     
-    for obj in env.objects:
-        if obj.type.name == 'MonoBehaviour':
-            try:
-                tree = obj.read_typetree()
-                if 'messageDictionary' in tree and 'entries' in tree['messageDictionary']:
-                    entries = tree['messageDictionary']['entries']
-                    for entry in entries:
-                        key = entry.get('key', '')
-                        val_dict = entry.get('value', {})
-                        message = val_dict.get('Message', '')
-                        if key and message:
-                            extracted.append([key, message, "", ""])
-            except Exception as e:
-                # Some MonoBehaviours don't have typetrees or are not messageDictionaries
-                pass
+    # Check if it's the expected Fantasian format
+    if 'original_tree' in data and 'messageDictionary' in data['original_tree']:
+        entries = data['original_tree']['messageDictionary'].get('entries', [])
+        for entry in entries:
+            key = entry.get('key', '')
+            val_dict = entry.get('value', {})
+            message = val_dict.get('Message', '')
+            if key and message:
+                extracted.append([key, message, "", ""])
+    else:
+        print("Error: Invalid JSON structure. Missing original_tree or messageDictionary.")
+        return False
                     
     if not extracted:
         print("Error: No messageDictionary entries found in this file.")
@@ -44,9 +42,9 @@ def unpack_fantasian(input_file, output_csv=None):
     return True
 
 if __name__ == '__main__':
-    print("--- Fantasian Unpacker ---")
+    print("--- Fantasian Unpacker (JSON Mode) ---")
     if len(sys.argv) < 2:
-        print("Usage: python Fantasian_unpacker.py <input_bundle> [output.csv]")
+        print("Usage: python Fantasian_unpacker.py <input_meta.json> [output.csv]")
         sys.exit(1)
         
     input_file = sys.argv[1]
@@ -56,4 +54,4 @@ if __name__ == '__main__':
         print(f"File not found: {input_file}")
         sys.exit(1)
         
-    unpack_fantasian(input_file, output_csv)
+    unpack_fantasian_json(input_file, output_csv)

@@ -32,12 +32,22 @@ def convert_to_csv(filepath, parent_widget=None):
                 if printable / len(p) >= 0.9:
                     entries.append((f"mesg_{i}", p))
                     
-    # 1. c2dictionary (Construct 2/3)
+    # 2. c2dictionary (Construct 2/3)
     elif isinstance(jdata, dict) and jdata.get("c2dictionary") is True and "data" in jdata:
         for k, v in jdata["data"].items():
             entries.append((k, str(v)))
             
-    # 2. Flat dict: {"key": "value"}
+    # 3. Fantasian_MonoBehaviour
+    elif isinstance(jdata, dict) and jdata.get("format") == "Fantasian_MonoBehaviour" and "original_tree" in jdata:
+        entries_list = jdata["original_tree"].get("messageDictionary", {}).get("entries", [])
+        for entry in entries_list:
+            key = entry.get('key', '')
+            val_dict = entry.get('value', {})
+            message = val_dict.get('Message', '')
+            if key and message:
+                entries.append((key, message))
+                
+    # 4. Flat dict: {"key": "value"}
     elif isinstance(jdata, dict):
         for k, v in jdata.items():
             if isinstance(v, (str, int, float, bool)):

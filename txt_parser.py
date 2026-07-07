@@ -3,7 +3,7 @@ import csv
 import json
 import re
 
-def parse_as_srt(filepath, parent_widget=None):
+def parse_as_srt(filepath, raw_text, parent_widget=None):
     base = os.path.splitext(filepath)[0]
     csv_out = base + '_parsed.csv'
     meta_out = base + '_parsed_meta.json'
@@ -11,10 +11,7 @@ def parse_as_srt(filepath, parent_widget=None):
     entries = []
     meta_data = {}
     
-    with open(filepath, 'r', encoding='utf-8-sig', errors='replace') as f:
-        content = f.read()
-        
-    blocks = re.split(r'\n\s*\n', content.strip())
+    blocks = re.split(r'\n\s*\n', raw_text.strip())
     
     for i, block in enumerate(blocks):
         lines = block.strip().split('\n')
@@ -41,16 +38,62 @@ def parse_as_srt(filepath, parent_widget=None):
         
     return csv_out
 
+def parse_as_alien_isolation(filepath, raw_text, parent_widget=None):
+    base = os.path.splitext(filepath)[0]
+    csv_out = base + '_parsed.csv'
+    
+    entries = []
+    
+    # Alien Isolation format:
+    # [KEY]
+    # {VALUE}
+    keys = re.findall(r'\[(.*?)\]', raw_text)
+    values = re.findall(r'\{(.*?)\}', raw_text, re.DOTALL)
+    
+    if len(keys) > 0 and len(keys) == len(values):
+        for i in range(len(keys)):
+            entries.append((keys[i].strip(), values[i].strip()))
+    
+    if not entries:
+        raise ValueError(f"No valid Alien: Isolation texts found in {filepath}")
+        
+    with open(csv_out, 'w', encoding='utf-8-sig', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(["ID", "Source", "Translation", "AI_Reference"])
+        for key, value in entries:
+            writer.writerow([key, value, "", ""])
+            
+    return csv_out
+
 def convert_to_csv(filepath, parent_widget=None):
     base = os.path.splitext(filepath)[0]
     csv_out = base + '_parsed.csv'
     
-    with open(filepath, 'r', encoding='utf-8-sig', errors='replace') as f:
+    # Determine encoding by sniffing BOM
+    with open(filepath, 'rb') as f:
+        raw_bytes = f.read(4)
+        
+    if raw_bytes.startswith(b'\xff\xfe'):
+        encoding = 'utf-16-le'
+    elif raw_bytes.startswith(b'\xfe\xff'):
+        encoding = 'utf-16-be'
+    else:
+        encoding = 'utf-8-sig'
+        
+    with open(filepath, 'r', encoding=encoding, errors='replace') as f:
         raw_text = f.read()
+        
+    # Heuristic 0: Is it Alien Isolation format?
+    if re.search(r'^\[.*?\]\s*\n\s*\{.*?\}', raw_text, re.MULTILINE | re.DOTALL):
+        # Additional check to be sure
+        keys = re.findall(r'\[(.*?)\]', raw_text)
+        values = re.findall(r'\{(.*?)\}', raw_text, re.DOTALL)
+        if len(keys) > 0 and len(keys) == len(values):
+            return parse_as_alien_isolation(filepath, raw_text, parent_widget)
         
     # Heuristic 1: Is it SRT? (Look for index followed by timestamp)
     if re.search(r'\d+\n\d{2}:\d{2}:\d{2}', raw_text):
-        return parse_as_srt(filepath, parent_widget)
+        return parse_as_srt(filepath, raw_text, parent_widget)
         
     # Heuristic 2: Telltale format (N) Character \n Text)
     lines = raw_text.split('\n')
@@ -82,4 +125,4 @@ def convert_to_csv(filepath, parent_widget=None):
                     writer.writerow([row_id, text, "", char])
         return csv_out
         
-    raise ValueError(f"ไม่พบรูปแบบข้อความที่รองรับในไฟล์ .txt นี้ (รองรับเฉพาะ SRT หรือ Telltale format)")
+    raise ValueError(f"ไม่พบรูปแบบข้อความที่รองรับในไฟล์ .txt นี้ (รองรับ SRT, Telltale, หรือ Alien: Isolation)")
